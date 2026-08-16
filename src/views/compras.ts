@@ -69,6 +69,11 @@ export async function renderCompras() {
     <div id="compras-wrap">Cargando…</div>
   `;
 
+  // registrar_devolucion está bloqueado para el Técnico en Farmacia (exigir_no_tecnico); se
+  // oculta el botón para que no llegue a llenar el formulario solo para toparse con el error.
+  const sesion = await api.currentUser();
+  const esTecnico = sesion?.rol_id === 4;
+
   const load = async () => {
     const compras = await api.listarCompras();
     const wrap = document.querySelector("#compras-wrap") as HTMLElement;
@@ -92,7 +97,7 @@ export async function renderCompras() {
               <td style="text-align:right;white-space:nowrap;">
                 <button class="btn-sm-icon" data-ver="${c.id}" title="Ver detalle"><i class="bi bi-eye"></i></button>
                 ${c.estado === "Pendiente" ? `<button class="btn-sm-icon" data-recibir="${c.id}" title="Recibir mercadería"><i class="bi bi-truck"></i></button>` : ""}
-                ${c.estado === "Completada" ? `<button class="btn-sm-icon danger" data-devolver="${c.id}" title="Devolver al proveedor"><i class="bi bi-arrow-return-left"></i></button>` : ""}
+                ${c.estado === "Completada" && !esTecnico ? `<button class="btn-sm-icon danger" data-devolver="${c.id}" title="Devolver al proveedor"><i class="bi bi-arrow-return-left"></i></button>` : ""}
               </td>
             </tr>`
             )
@@ -144,9 +149,13 @@ async function verDetalle(idCompra: number) {
 // ---------------- Nueva compra ----------------
 
 async function abrirNuevaCompra(onDone: () => void) {
-  const [proveedoresIniciales, productos] = await Promise.all([api.listarProveedores(), api.listarProductos(true)]);
+  const [proveedoresIniciales, productos, sesion] = await Promise.all([api.listarProveedores(), api.listarProductos(true), api.currentUser()]);
   const proveedores: Proveedor[] = proveedoresIniciales;
   const lineas: LineaCompra[] = [];
+  // crear_compra ignora silenciosamente el precio de venta que ingrese el Técnico en Farmacia
+  // (nunca se le permite cambiar precios de venta); se lo avisamos aquí para que no piense que
+  // el campo no se guardó por un error.
+  const esTecnico = sesion?.rol_id === 4;
 
   const overlay = openModal(`
     <h3>Nueva compra</h3>
@@ -231,7 +240,7 @@ async function abrirNuevaCompra(onDone: () => void) {
         </div>
         <div class="grid-2">
           <div class="form-group"><label class="form-label">Precio compra unit.</label><input class="form-control-custom" type="number" step="0.01" data-f="precio_unitario" data-i="${i}" value="${l.precio_unitario}" /></div>
-          <div class="form-group"><label class="form-label">Precio venta (si actualiza)</label><input class="form-control-custom" type="number" step="0.01" data-f="precio_venta" data-i="${i}" value="${l.precio_venta}" /></div>
+          <div class="form-group"><label class="form-label">Precio venta (si actualiza)</label><input class="form-control-custom" type="number" step="0.01" data-f="precio_venta" data-i="${i}" value="${l.precio_venta}" ${esTecnico ? "disabled" : ""} />${esTecnico ? '<small style="color:var(--text-secondary);">El Técnico en Farmacia no puede modificar el precio de venta.</small>' : ""}</div>
         </div>
         <div class="grid-2">
           <div class="form-group"><label class="form-label">Código de lote</label><input class="form-control-custom" data-f="lote" data-i="${i}" value="${l.lote}" /></div>

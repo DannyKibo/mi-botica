@@ -8,6 +8,24 @@ fn usuario_actual(session: &State<SessionState>) -> Result<i64, String> {
     session.0.lock().unwrap().as_ref().map(|u| u.id).ok_or_else(|| "No hay sesión activa".to_string())
 }
 
+/// Verifica que la caja `id_caja` exista y pertenezca al usuario en sesión (o que el usuario
+/// tenga rol de supervisión). Replica el comportamiento del PHP original, donde todas las
+/// operaciones de caja se resuelven siempre a partir de `getCajaAbiertaPorUsuario($_SESSION['user_id'])`
+/// — nunca a partir de un id de caja provisto libremente por el cliente.
+fn verificar_propietario_caja(conn: &rusqlite::Connection, session: &State<SessionState>, id_caja: i64) -> Result<(), String> {
+    let id_usuario_actual = usuario_actual(session)?;
+    let rol_id = session.0.lock().unwrap().as_ref().map(|u| u.rol_id).ok_or_else(|| "No hay sesión activa".to_string())?;
+    let dueno: i64 = conn
+        .query_row("SELECT usuario_id FROM cajas WHERE id = ?1", params![id_caja], |r| r.get(0))
+        .map_err(|_| "La caja indicada no existe.".to_string())?;
+    // Rol 1 (Administrador) y rol 3 (Propietario) pueden ver/gestionar cajas ajenas (supervisión);
+    // el resto solo puede operar sobre su propia caja.
+    if dueno != id_usuario_actual && rol_id != 1 && rol_id != 3 {
+        return Err("No tienes permiso para operar sobre esta caja.".into());
+    }
+    Ok(())
+}
+
 #[derive(Serialize)]
 pub struct Caja {
     pub id: i64,
@@ -82,8 +100,9 @@ pub struct ResumenCaja {
 }
 
 #[tauri::command]
-pub fn resumen_caja(db: State<DbState>, id_caja: i64) -> Result<ResumenCaja, String> {
+pub fn resumen_caja(db: State<DbState>, session: State<SessionState>, id_caja: i64) -> Result<ResumenCaja, String> {
     let conn = db.0.lock().unwrap();
+    verificar_propietario_caja(&conn, &session, id_caja)?;
     let (efectivo, transferencias): (f64, f64) = conn
         .query_row(
             "SELECT COALESCE(SUM(CASE WHEN metodo_pago='Efectivo' THEN total ELSE 0 END),0),
@@ -106,8 +125,15 @@ pub fn resumen_caja(db: State<DbState>, id_caja: i64) -> Result<ResumenCaja, Str
 }
 
 #[tauri::command]
-pub fn cerrar_caja(db: State<DbState>, id_caja: i64, monto_final_real: f64, observacion: Option<String>) -> Result<(), String> {
+pub fn cerrar_caja(db: State<DbState>, session: State<SessionState>, id_caja: i64, monto_final_real: f64, observacion: Option<String>) -> Result<(), String> {
     let conn = db.0.lock().unwrap();
+    verificar_propietario_caja(&conn, &session, id_caja)?;
+    let estado: i64 = conn
+        .query_row("SELECT estado FROM cajas WHERE id = ?1", params![id_caja], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    if estado != 1 {
+        return Err("Esta caja ya fue cerrada anteriormente.".into());
+    }
     let resumen = {
         let (efectivo, transferencias): (f64, f64) = conn
             .query_row(
@@ -170,8 +196,9 @@ pub struct MovimientoCaja {
 }
 
 #[tauri::command]
-pub fn movimientos_caja(db: State<DbState>, id_caja: i64) -> Result<Vec<MovimientoCaja>, String> {
+pub fn movimientos_caja(db: State<DbState>, session: State<SessionState>, id_caja: i64) -> Result<Vec<MovimientoCaja>, String> {
     let conn = db.0.lock().unwrap();
+    verificar_propietario_caja(&conn, &session, id_caja)?;
     let mut stmt = conn
         .prepare("SELECT id, tipo, monto, motivo, fecha_movimiento FROM caja_movimientos WHERE caja_id = ?1 ORDER BY id DESC")
         .map_err(|e| e.to_string())?;
@@ -184,11 +211,12 @@ pub fn movimientos_caja(db: State<DbState>, id_caja: i64) -> Result<Vec<Movimien
 }
 
 #[tauri::command]
-pub fn registrar_movimiento_caja(db: State<DbState>, id_caja: i64, tipo: String, monto: f64, motivo: String) -> Result<(), String> {
+pub fn registrar_movimiento_caja(db: State<DbState>, session: State<SessionState>, id_caja: i64, tipo: String, monto: f64, motivo: String) -> Result<(), String> {
     if monto <= 0.0 {
         return Err("El monto debe ser mayor a cero.".into());
     }
     let conn = db.0.lock().unwrap();
+    verificar_propietario_caja(&conn, &session, id_caja)?;
     conn.execute(
         "INSERT INTO caja_movimientos (caja_id, tipo, monto, motivo) VALUES (?1,?2,?3,?4)",
         params![id_caja, tipo, monto, motivo],

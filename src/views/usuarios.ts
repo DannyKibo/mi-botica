@@ -50,9 +50,13 @@ export async function renderUsuarios() {
     wrap.querySelectorAll<HTMLButtonElement>("[data-del]").forEach((b) =>
       b.addEventListener("click", async () => {
         if (!confirm("¿Desactivar este usuario?")) return;
-        await api.eliminarUsuario(Number(b.dataset.del));
-        toast("Usuario desactivado");
-        load();
+        try {
+          await api.eliminarUsuario(Number(b.dataset.del));
+          toast("Usuario desactivado");
+          load();
+        } catch (err) {
+          toast(String(err), "error");
+        }
       })
     );
   };

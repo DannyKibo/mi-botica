@@ -46,7 +46,10 @@ export async function renderProductos() {
     }
   });
 
-  const [categorias, laboratorios] = await Promise.all([api.listarCategorias(), api.listarLaboratorios()]);
+  const [categorias, laboratorios, sesion] = await Promise.all([api.listarCategorias(), api.listarLaboratorios(), api.currentUser()]);
+  // El Técnico en Farmacia solo puede crear productos nuevos: no puede editar productos
+  // existentes (guardar_producto lo bloquea) ni eliminarlos (eliminar_producto lo bloquea).
+  const esTecnico = sesion?.rol_id === 4;
 
   const load = async () => {
     const items = await api.listarProductos(true);
@@ -70,8 +73,8 @@ export async function renderProductos() {
               <td>${p.stock_actual <= p.stock_minimo ? `<span class="pill pill-off">${p.stock_actual}</span>` : p.stock_actual}</td>
               <td>${p.requiere_receta ? '<i class="bi bi-check-circle-fill" style="color:var(--warning)"></i>' : "—"}</td>
               <td style="text-align:right;">
-                <button class="btn-sm-icon" data-edit="${p.id}"><i class="bi bi-pencil"></i></button>
-                <button class="btn-sm-icon danger" data-del="${p.id}"><i class="bi bi-trash"></i></button>
+                ${esTecnico ? "" : `<button class="btn-sm-icon" data-edit="${p.id}"><i class="bi bi-pencil"></i></button>
+                <button class="btn-sm-icon danger" data-del="${p.id}"><i class="bi bi-trash"></i></button>`}
               </td>
             </tr>`
             )
@@ -89,9 +92,13 @@ export async function renderProductos() {
     wrap.querySelectorAll<HTMLButtonElement>("[data-del]").forEach((b) =>
       b.addEventListener("click", async () => {
         if (!confirm("¿Desactivar este producto?")) return;
-        await api.eliminarProducto(Number(b.dataset.del));
-        toast("Producto desactivado");
-        load();
+        try {
+          await api.eliminarProducto(Number(b.dataset.del));
+          toast("Producto desactivado");
+          load();
+        } catch (err) {
+          toast(String(err), "error");
+        }
       })
     );
   };

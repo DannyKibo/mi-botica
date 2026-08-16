@@ -363,7 +363,7 @@ async function renderConteo(idAuditoria: number) {
               <td>${d.stock_sistema}</td>
               <td>${
                 abierta
-                  ? `<input type="number" class="form-control-custom" style="padding:6px 10px;width:100px;" data-lote="${d.id_lote}" value="${d.stock_fisico}" ${d.contado ? "" : ""}/>`
+                  ? `<input type="number" min="0" class="form-control-custom" style="padding:6px 10px;width:100px;" data-lote="${d.id_lote}" value="${d.stock_fisico}" ${d.contado ? "" : ""}/>`
                   : d.stock_fisico
               }</td>
               <td>${d.contado ? d.diferencia : "—"}</td>
@@ -393,8 +393,16 @@ async function renderConteo(idAuditoria: number) {
     if (abierta) {
       wrap.querySelectorAll<HTMLInputElement>("[data-lote]").forEach((inp) => {
         inp.addEventListener("change", async () => {
-          await api.guardarConteoParcial(idAuditoria, Number(inp.dataset.lote), Number(inp.value));
-          toast("Conteo guardado");
+          if (Number(inp.value) < 0) {
+            toast("El stock físico no puede ser negativo", "error");
+            return;
+          }
+          try {
+            await api.guardarConteoParcial(idAuditoria, Number(inp.dataset.lote), Number(inp.value));
+            toast("Conteo guardado");
+          } catch (err) {
+            toast(String(err), "error");
+          }
         });
       });
 

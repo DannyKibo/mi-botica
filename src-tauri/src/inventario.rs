@@ -309,6 +309,9 @@ pub fn detalles_auditoria(db: State<DbState>, session: State<SessionState>, id_a
 #[tauri::command]
 pub fn guardar_conteo_parcial(db: State<DbState>, session: State<SessionState>, id_auditoria: i64, id_lote: i64, stock_fisico: i64) -> Result<(), String> {
     auth::exigir_no_tecnico(&session)?;
+    if stock_fisico < 0 {
+        return Err("El stock físico no puede ser negativo.".into());
+    }
     let conn = db.0.lock().unwrap();
     conn.execute(
         "UPDATE inventario_auditoria_detalles SET stock_fisico = ?1, contado = 1 WHERE id_auditoria = ?2 AND id_lote = ?3",

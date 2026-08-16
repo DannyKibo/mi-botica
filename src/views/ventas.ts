@@ -171,7 +171,7 @@ async function renderPos() {
           </div>
         </div>
         <div class="grid-2">
-          <div class="form-group"><label class="form-label">Descuento (${moneda})</label><input class="form-control-custom" id="f-descuento" type="number" step="0.01" value="0" /></div>
+          <div class="form-group"><label class="form-label">Descuento (${moneda})</label><input class="form-control-custom" id="f-descuento" type="number" min="0" step="0.01" value="0" /></div>
           <div class="form-group"><label class="form-label">Recibido (${moneda})</label><input class="form-control-custom" id="f-recibido" type="number" step="0.01" value="0" /></div>
         </div>
         <div class="form-group"><label class="form-label">N° Receta / CMP médico (si aplica)</label><input class="form-control-custom" id="f-cmp" /></div>
@@ -274,7 +274,7 @@ async function renderPos() {
 
   const recalcular = () => {
     const sumaLineas = carrito.reduce((acc, l) => acc + precioLinea(l) * l.cantidad, 0);
-    const descuento = Number((body.querySelector("#f-descuento") as HTMLInputElement).value || 0);
+    const descuento = Math.max(0, Number((body.querySelector("#f-descuento") as HTMLInputElement).value || 0));
     const total = Math.max(0, sumaLineas - descuento);
     const factorIgv = igvPct / 100 + 1;
     const subtotal = total / factorIgv;
@@ -317,7 +317,7 @@ async function renderPos() {
       return;
     }
     const sumaLineas = carrito.reduce((acc, l) => acc + precioLinea(l) * l.cantidad, 0);
-    const descuento = Number((body.querySelector("#f-descuento") as HTMLInputElement).value || 0);
+    const descuento = Math.max(0, Number((body.querySelector("#f-descuento") as HTMLInputElement).value || 0));
     const total = Math.max(0, sumaLineas - descuento);
     const factorIgv = igvPct / 100 + 1;
     const subtotal = total / factorIgv;

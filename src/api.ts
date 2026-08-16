@@ -46,7 +46,7 @@ export const api = {
   logout: () => invoke<void>("logout"),
   currentUser: () => invoke<SessionUser | null>("current_user"),
   cambiarPassword: (password_nueva: string, password_confirmar: string) =>
-    invoke<void>("cambiar_password", { password_nueva, password_confirmar }),
+    invoke<void>("cambiar_password", { passwordNueva: password_nueva, passwordConfirmar: password_confirmar }),
 
   // Categorías
   listarCategorias: () => invoke<Categoria[]>("listar_categorias"),
@@ -95,7 +95,14 @@ export const api = {
     codigo_lote: string;
     fecha_vencimiento: string;
     motivo: string;
-  }) => invoke<void>("registrar_entrada_manual", payload),
+  }) =>
+    invoke<void>("registrar_entrada_manual", {
+      idProducto: payload.id_producto,
+      cantidad: payload.cantidad,
+      codigoLote: payload.codigo_lote,
+      fechaVencimiento: payload.fecha_vencimiento,
+      motivo: payload.motivo,
+    }),
   listarKardex: (id_producto: number | null) => invoke<MovimientoKardex[]>("listar_kardex", { idProducto: id_producto }),
   listarAuditorias: () => invoke<Auditoria[]>("listar_auditorias"),
   iniciarAuditoria: (tipo: string, observaciones: string) => invoke<number>("iniciar_auditoria", { tipo, observaciones }),
